@@ -69,7 +69,7 @@ export function App() {
         {search.status === 'done' && !scanning && (
           <>
             {search.result.product ? (
-              <ProductCard product={search.result.product} />
+              <ProductCard code={search.code} product={search.result.product} />
             ) : (
               <article className="card">
                 <h2>{failed ? 'Базы недоступны' : 'Продукт не найден'}</h2>

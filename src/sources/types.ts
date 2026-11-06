@@ -19,6 +19,10 @@ export type Product = {
   url?: string
   ingredients?: string
   nutriScore?: NutriScore
+  // Вода, алкоголь и другие группы, для которых формула Nutri-Score не предусмотрена
+  nutriScoreNotApplicable?: boolean
+  // Данные, без которых база не рассчитала Nutri-Score
+  nutriScoreMissing?: string[]
   nova?: number
   organic?: boolean
   additives?: string[]

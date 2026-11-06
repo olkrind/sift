@@ -10,6 +10,7 @@ const FIELDS = [
   'ingredients_text_sr',
   'ingredients_text_en',
   'nutriscore_grade',
+  'misc_tags',
   'nova_group',
   'labels_tags',
   'additives_original_tags',
@@ -34,6 +35,17 @@ const ALLERGENS: Record<string, string> = {
   'sulphur-dioxide-and-sulphites': 'сульфиты',
 }
 
+// Клетчатка в списке отсутствует: метка en:nutriscore-missing-fiber бывает и у рассчитанных оценок
+const SCORE_REQUIREMENTS: Record<string, string> = {
+  'en:nutriscore-missing-category': 'категория',
+  'en:nutriscore-missing-nutrition-data-energy': 'калорийность',
+  'en:nutriscore-missing-nutrition-data-proteins': 'белки',
+  'en:nutriscore-missing-nutrition-data-salt': 'соль',
+  'en:nutriscore-missing-nutrition-data-saturated-fat': 'насыщенные жиры',
+  'en:nutriscore-missing-nutrition-data-sodium': 'соль',
+  'en:nutriscore-missing-nutrition-data-sugars': 'сахара',
+}
+
 type OffProduct = {
   product_name?: string
   brands?: string
@@ -44,6 +56,7 @@ type OffProduct = {
   ingredients_text_sr?: string
   ingredients_text_en?: string
   nutriscore_grade?: string
+  misc_tags?: string[]
   nova_group?: number
   labels_tags?: string[]
   additives_original_tags?: string[]
@@ -60,8 +73,13 @@ function nutrient(nutriments: OffProduct['nutriments'], key: string): number | u
   return typeof value === 'number' ? value : undefined
 }
 
+function missingForScore(tags: string[] = []): string[] {
+  return [...new Set(tags.flatMap((tag) => SCORE_REQUIREMENTS[tag] ?? []))]
+}
+
 function toProduct(code: string, raw: OffProduct): Product {
   const grade = raw.nutriscore_grade
+  const hasGrade = grade !== undefined && grade.length === 1 && 'abcde'.includes(grade)
   const ingredients =
     raw.ingredients_text_ru || raw.ingredients_text_sr || raw.ingredients_text_en || raw.ingredients_text
 
@@ -74,7 +92,9 @@ function toProduct(code: string, raw: OffProduct): Product {
     // Подчёркивания в тексте — разметка аллергенов в Open Food Facts
     ingredients: ingredients?.replaceAll('_', ''),
     // Также приходят значения unknown и not-applicable
-    nutriScore: grade && 'abcde'.includes(grade) ? (grade as NutriScore) : undefined,
+    nutriScore: hasGrade ? (grade as NutriScore) : undefined,
+    nutriScoreNotApplicable: grade === 'not-applicable' || undefined,
+    nutriScoreMissing: hasGrade ? undefined : missingForScore(raw.misc_tags),
     nova: raw.nova_group,
     organic: raw.labels_tags?.some((tag) => tag === 'en:organic' || tag === 'en:eu-organic'),
     additives: raw.additives_original_tags?.map((tag) => {

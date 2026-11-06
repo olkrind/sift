@@ -23,10 +23,22 @@ function formatNumber(value: number): string {
   return value.toLocaleString('ru', { maximumFractionDigits: 1 })
 }
 
-export function ProductCard({ product }: { product: Product }) {
+function noScoreMessage({ nutriScoreNotApplicable, nutriScoreMissing }: Product): string {
+  if (nutriScoreNotApplicable) return 'Nutri-Score к этому продукту не применяется.'
+  if (nutriScoreMissing?.length) return `В базе нет Nutri-Score. Не хватает данных: ${nutriScoreMissing.join(', ')}.`
+  return 'В базе нет Nutri-Score.'
+}
+
+type Props = {
+  code: string
+  product: Product
+}
+
+export function ProductCard({ code, product }: Props) {
   const score = scoreProduct(product)
   const nutrients = product.nutrients
   const rows = NUTRIENT_ROWS.filter(({ key }) => nutrients?.[key] !== undefined)
+  const incomplete = !product.ingredients || (!score && !product.nutriScoreNotApplicable)
 
   return (
     <article className="card">
@@ -35,6 +47,7 @@ export function ProductCard({ product }: { product: Product }) {
         <div>
           <h2>{product.name ?? 'Без названия'}</h2>
           <p className="muted">{[product.brand, product.quantity].filter(Boolean).join(' · ')}</p>
+          <p className="muted">Штрихкод {code}</p>
         </div>
       </header>
 
@@ -53,7 +66,7 @@ export function ProductCard({ product }: { product: Product }) {
           </div>
         </section>
       ) : (
-        <p className="notice">Для оценки не хватает данных: у продукта нет Nutri-Score.</p>
+        <p className="notice">{noScoreMessage(product)}</p>
       )}
 
       {(product.nutriScore || product.nova) && (
@@ -108,10 +121,21 @@ export function ProductCard({ product }: { product: Product }) {
         </section>
       )}
 
-      {product.url && (
-        <a className="link" href={product.url} target="_blank" rel="noreferrer">
-          Открыть в источнике
+      {incomplete ? (
+        <a
+          className="link"
+          href={`https://world.openfoodfacts.org/product/${code}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Дополнить карточку в Open Food Facts
         </a>
+      ) : (
+        product.url && (
+          <a className="link" href={product.url} target="_blank" rel="noreferrer">
+            Открыть в источнике
+          </a>
+        )
       )}
     </article>
   )
