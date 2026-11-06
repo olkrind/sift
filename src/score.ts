@@ -1,3 +1,5 @@
+import { estimateNutriScore } from './nutriScore.ts'
+import type { NutriScoreEstimate } from './nutriScore.ts'
 import type { NutriScore, Product } from './sources/types.ts'
 
 const NUTRI_POINTS: Record<NutriScore, number> = { a: 90, b: 75, c: 55, d: 35, e: 15 }
@@ -10,6 +12,8 @@ export type Score = {
   value: number
   verdict: string
   tone: 'good' | 'fair' | 'poor' | 'bad'
+  // Буква рассчитана в Sift: в базе Nutri-Score нет
+  estimate?: NutriScoreEstimate
   factors: { label: string; points: number }[]
 }
 
@@ -20,11 +24,14 @@ function verdictFor(value: number): Pick<Score, 'verdict' | 'tone'> {
   return { verdict: 'Плохой выбор', tone: 'bad' }
 }
 
-// Без Nutri-Score оценка не считается: добавки и обработка не описывают питательность
+// Без буквы оценка не считается: добавки и обработка не описывают питательность
 export function scoreProduct(product: Product): Score | undefined {
-  if (!product.nutriScore) return undefined
+  const estimate = product.nutriScore || product.nutriScoreNotApplicable ? undefined : estimateNutriScore(product)
+  const grade = product.nutriScore ?? estimate?.grade
+  if (!grade) return undefined
 
-  const factors = [{ label: `Nutri-Score ${product.nutriScore.toUpperCase()}`, points: NUTRI_POINTS[product.nutriScore] }]
+  const gradeLabel = `Nutri-Score ${grade.toUpperCase()}${estimate ? ', приблизительно' : ''}`
+  const factors = [{ label: gradeLabel, points: NUTRI_POINTS[grade] }]
   const novaPenalty = NOVA_PENALTY[product.nova ?? 0]
   if (novaPenalty) factors.push({ label: `Обработка NOVA ${product.nova}`, points: -novaPenalty })
   const additives = product.additives?.length ?? 0
@@ -38,5 +45,5 @@ export function scoreProduct(product: Product): Score | undefined {
 
   const total = factors.reduce((sum, factor) => sum + factor.points, 0)
   const value = Math.min(100, Math.max(0, total))
-  return { value, factors, ...verdictFor(value) }
+  return { value, factors, estimate, ...verdictFor(value) }
 }

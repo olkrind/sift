@@ -1,5 +1,17 @@
+import { detectProductType } from '../productType.ts'
+import type { ProductType } from '../productType.ts'
 import { scoreProduct } from '../score.ts'
 import type { Nutrients, Product } from '../sources/types.ts'
+
+const FORMULA_LABELS: Record<ProductType, string> = {
+  alcohol: 'алкоголя',
+  water: 'воды',
+  juice: 'соков',
+  beverage: 'напитков',
+  cheese: 'сыров',
+  fat: 'жиров, масел и орехов',
+  food: 'обычных продуктов',
+}
 
 const NUTRIENT_ROWS: { key: keyof Nutrients; label: string; unit: string }[] = [
   { key: 'energyKcal', label: 'Энергия', unit: 'ккал' },
@@ -23,8 +35,11 @@ function formatNumber(value: number): string {
   return value.toLocaleString('ru', { maximumFractionDigits: 1 })
 }
 
-function noScoreMessage({ nutriScoreNotApplicable, nutriScoreMissing }: Product): string {
-  if (nutriScoreNotApplicable) return 'Nutri-Score к этому продукту не применяется.'
+function noScoreMessage(product: Product): string {
+  const { nutriScoreNotApplicable, nutriScoreMissing } = product
+  if (nutriScoreNotApplicable || detectProductType(product) === 'alcohol') {
+    return 'Nutri-Score к этому продукту не применяется.'
+  }
   if (nutriScoreMissing?.length) return `В базе нет Nutri-Score. Не хватает данных: ${nutriScoreMissing.join(', ')}.`
   return 'В базе нет Nutri-Score.'
 }
@@ -38,7 +53,7 @@ export function ProductCard({ code, product }: Props) {
   const score = scoreProduct(product)
   const nutrients = product.nutrients
   const rows = NUTRIENT_ROWS.filter(({ key }) => nutrients?.[key] !== undefined)
-  const incomplete = !product.ingredients || (!score && !product.nutriScoreNotApplicable)
+  const incomplete = !product.ingredients || (!product.nutriScore && !product.nutriScoreNotApplicable)
 
   return (
     <article className="card">
@@ -69,10 +84,22 @@ export function ProductCard({ code, product }: Props) {
         <p className="notice">{noScoreMessage(product)}</p>
       )}
 
-      {(product.nutriScore || product.nova) && (
+      {score?.estimate && (
+        <p className="notice">
+          Приблизительный расчёт Sift по формуле для {FORMULA_LABELS[score.estimate.type]}: тип определён по названию и
+          объёму. {noScoreMessage(product)}
+        </p>
+      )}
+
+      {(product.nutriScore || score?.estimate || product.nova) && (
         <div className="grades">
           {product.nutriScore && (
             <span className={`grade grade-${product.nutriScore}`}>Nutri-Score {product.nutriScore.toUpperCase()}</span>
+          )}
+          {score?.estimate && (
+            <span className={`grade grade-${score.estimate.grade}`}>
+              Расчёт Sift: {score.estimate.grade.toUpperCase()}
+            </span>
           )}
           {product.nova && (
             <span className="grade grade-nova">
