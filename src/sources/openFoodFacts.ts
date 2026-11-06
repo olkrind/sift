@@ -46,6 +46,8 @@ const SCORE_REQUIREMENTS: Record<string, string> = {
   'en:nutriscore-missing-nutrition-data-sugars': 'сахара',
 }
 
+const KJ_PER_KCAL = 4.184
+
 type OffProduct = {
   product_name?: string
   brands?: string
@@ -71,6 +73,12 @@ function untag(tag: string): string {
 function nutrient(nutriments: OffProduct['nutriments'], key: string): number | undefined {
   const value = nutriments?.[`${key}_100g`]
   return typeof value === 'number' ? value : undefined
+}
+
+// У части карточек энергия указана только в кДж
+function energyKcal(nutriments: OffProduct['nutriments']): number | undefined {
+  const kilojoules = nutrient(nutriments, 'energy-kj') ?? nutrient(nutriments, 'energy')
+  return nutrient(nutriments, 'energy-kcal') ?? (kilojoules === undefined ? undefined : kilojoules / KJ_PER_KCAL)
 }
 
 function missingForScore(tags: string[] = []): string[] {
@@ -103,7 +111,7 @@ function toProduct(code: string, raw: OffProduct): Product {
     }),
     allergens: raw.allergens_tags?.map((tag) => ALLERGENS[untag(tag)] ?? untag(tag)),
     nutrients: raw.nutriments && {
-      energyKcal: nutrient(raw.nutriments, 'energy-kcal'),
+      energyKcal: energyKcal(raw.nutriments),
       fat: nutrient(raw.nutriments, 'fat'),
       saturatedFat: nutrient(raw.nutriments, 'saturated-fat'),
       carbohydrates: nutrient(raw.nutriments, 'carbohydrates'),

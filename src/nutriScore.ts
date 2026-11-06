@@ -1,6 +1,6 @@
 import { detectProductType } from './productType.ts'
 import type { ProductType } from './productType.ts'
-import type { NutriScore, Product } from './sources/types.ts'
+import type { NutriScore, Nutrients, Product } from './sources/types.ts'
 
 // Формулы Nutri-Score 2023; пороги совпадают с Nutriscore.pm в Open Food Facts.
 // Доля фруктов и овощей неизвестна и считается нулевой, кроме соков.
@@ -38,7 +38,7 @@ type Formula = {
 
 export type NutriScoreEstimate = {
   grade: NutriScore
-  type: ProductType
+  type: Exclude<ProductType, 'excluded'>
 }
 
 function points(value: number, thresholds: number[]): number {
@@ -49,7 +49,7 @@ function pointsInclusive(value: number, thresholds: number[]): number {
   return thresholds.filter((threshold) => value >= threshold).length
 }
 
-function formulaFor(type: ProductType, kilojoules: number, product: Required<Pick<Product, 'nutrients'>>['nutrients']): Formula | undefined {
+function formulaFor(type: ProductType, kilojoules: number, product: Nutrients): Formula | undefined {
   const sugars = product.sugars!
   const saturatedFat = product.saturatedFat!
   const salt = points(product.salt!, SALT)
@@ -84,23 +84,35 @@ function formulaFor(type: ProductType, kilojoules: number, product: Required<Pic
   }
 }
 
+function gradeFor(type: ProductType, nutrients: Nutrients): NutriScore | undefined {
+  const { energyKcal, protein, fiber = 0 } = nutrients
+  const formula = formulaFor(type, energyKcal! * KJ_PER_KCAL, nutrients)
+  if (!formula) return undefined
+
+  const proteinPoints = formula.negative < formula.proteinLimit ? points(protein!, formula.proteins) : 0
+  const fruitPoints = type === 'juice' ? JUICE_FRUIT_POINTS : 0
+  const total = formula.negative - points(fiber, FIBER) - proteinPoints - fruitPoints
+  const grades: NutriScore[] = ['a', 'b', 'c', 'd']
+  return grades.find((_, index) => total <= formula.limits[index]) ?? 'e'
+}
+
 export function estimateNutriScore(product: Product): NutriScoreEstimate | undefined {
   const type = detectProductType(product)
-  if (type === 'alcohol') return undefined
+  if (type === 'excluded') return undefined
   if (type === 'water') return { grade: 'a', type }
 
   const { nutrients } = product
   if (!nutrients) return undefined
-  const { energyKcal, sugars, saturatedFat, salt, protein, fiber = 0 } = nutrients
-  if (energyKcal === undefined || sugars === undefined || saturatedFat === undefined) return undefined
-  if (salt === undefined || protein === undefined) return undefined
+  const { energyKcal, sugars, saturatedFat, fat, carbohydrates, salt, protein } = nutrients
+  if (energyKcal === undefined || salt === undefined || protein === undefined) return undefined
 
-  const formula = formulaFor(type, energyKcal * KJ_PER_KCAL, nutrients)
-  if (!formula) return undefined
+  // Насыщенных жиров не больше общего жира, сахаров не больше углеводов:
+  // одинаковая буква на обеих границах верна при любом значении пропущенного поля
+  const highSaturatedFat = saturatedFat ?? fat
+  const highSugars = sugars ?? carbohydrates
+  if (highSaturatedFat === undefined || highSugars === undefined) return undefined
 
-  const proteinPoints = formula.negative < formula.proteinLimit ? points(protein, formula.proteins) : 0
-  const fruitPoints = type === 'juice' ? JUICE_FRUIT_POINTS : 0
-  const total = formula.negative - points(fiber, FIBER) - proteinPoints - fruitPoints
-  const grades: NutriScore[] = ['a', 'b', 'c', 'd']
-  return { grade: grades.find((_, index) => total <= formula.limits[index]) ?? 'e', type }
+  const lowest = gradeFor(type, { ...nutrients, saturatedFat: saturatedFat ?? 0, sugars: sugars ?? 0 })
+  const highest = gradeFor(type, { ...nutrients, saturatedFat: highSaturatedFat, sugars: highSugars })
+  return lowest && lowest === highest ? { grade: lowest, type } : undefined
 }

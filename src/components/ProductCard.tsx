@@ -3,8 +3,7 @@ import type { ProductType } from '../productType.ts'
 import { scoreProduct } from '../score.ts'
 import type { Nutrients, Product } from '../sources/types.ts'
 
-const FORMULA_LABELS: Record<ProductType, string> = {
-  alcohol: 'алкоголя',
+const FORMULA_LABELS: Record<Exclude<ProductType, 'excluded'>, string> = {
   water: 'воды',
   juice: 'соков',
   beverage: 'напитков',
@@ -37,7 +36,7 @@ function formatNumber(value: number): string {
 
 function noScoreMessage(product: Product): string {
   const { nutriScoreNotApplicable, nutriScoreMissing } = product
-  if (nutriScoreNotApplicable || detectProductType(product) === 'alcohol') {
+  if (nutriScoreNotApplicable || detectProductType(product) === 'excluded') {
     return 'Nutri-Score к этому продукту не применяется.'
   }
   if (nutriScoreMissing?.length) return `В базе нет Nutri-Score. Не хватает данных: ${nutriScoreMissing.join(', ')}.`
