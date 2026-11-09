@@ -13,7 +13,7 @@ npm run build    # проверка типов и сборка в dist
 npm run lint
 ```
 
-Публикация на GitHub Pages выполняется при пуше в `master` (`.github/workflows/deploy.yml`). В настройках репозитория: Settings → Pages → Source: GitHub Actions.
+Публикация на GitHub Pages выполняется при пуше в `main` (`.github/workflows/deploy.yml`). В настройках репозитория: Settings → Pages → Source: GitHub Actions.
 
 ## Источники
 
